@@ -8,9 +8,10 @@
   CHECK_CONTIGUOUS(x)
 
 
-std::tuple<torch::Tensor, torch::Tensor> max_mul_cuda_forward(
+std::tuple<torch::Tensor, torch::Tensor> scatter_edge_cuda(
     const torch::Tensor src,
     const torch::Tensor edge_start,
     const torch::Tensor edge_end,
-    int64_t res_dim);
+    int64_t res_dim,
+     std::string reduce);
 

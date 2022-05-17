@@ -2,8 +2,8 @@ from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 
 setup(
-    name='berkelib',
-    version='0.0.1',
+    name='scatter_edge',
+    version='1.0',
     description='Pytorch Extension Library of Optimized Sparse Matrix multiplication',
     author='Berke Kisin',
     author_email="kisinberke@gmail.com",
@@ -13,9 +13,9 @@ setup(
           #     'berkelib.cpp',
           #     'cpu/berkelib_cpu.cpp',
           #]),
-          CUDAExtension('berkelib', [
-                'berkelib.cpp',
-                'cuda/berkelib_cuda.cu'
+          CUDAExtension('scatter_edge', [
+                'scatter_edge.cpp',
+                'cuda/scatter_edge_cuda.cu'
           ])
 
     ],

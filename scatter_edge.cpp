@@ -4,19 +4,20 @@
 //#include "cpu/berkelib_cpu.h"
 
 //#ifdef WITH_CUDA
-#include "cuda/berkelib_cuda.h"
+#include "cuda/scatter_edge_cuda.h"
 //#endif
 
-std::tuple<torch::Tensor, torch::Tensor> max_mul_forward(
+std::tuple<torch::Tensor, torch::Tensor> scatter_edge_forward(
     const torch::Tensor src,
     const torch::Tensor edge_start,
     const torch::Tensor edge_end,
-    int64_t res_dim)
+    int64_t res_dim,
+    std::string reduce)
 {
   if (src.device().is_cuda())
   {
 //#ifdef WITH_CUDA
-    return max_mul_cuda_forward(src, edge_start, edge_end, res_dim);
+    return scatter_edge_cuda(src, edge_start, edge_end, res_dim, reduce);
 //#else
    //AT_ERROR("Not compiled with CUDA support");
 //#endif
@@ -31,7 +32,7 @@ using torch::autograd::AutogradContext;
 using torch::autograd::Variable;
 using torch::autograd::variable_list;
 
-class MaxMul : public torch::autograd::Function<MaxMul>
+class ScatterEdgeMax : public torch::autograd::Function<ScatterEdgeMax>
 {
 public:
   static variable_list forward(AutogradContext *ctx, Variable src,
@@ -42,7 +43,7 @@ public:
     // ctx->saved_data["dim"] = dim_size;
     ctx->saved_data["src_shape"] = src.sizes();
     // auto result = max_mul_cuda_forward(src, edge_start, edge_end, dim_size);
-    auto result = max_mul_forward(src, edge_start, edge_end, res_dim);
+    auto result = scatter_edge_forward(src, edge_start, edge_end, res_dim, "max");
     auto out = std::get<0>(result);
     auto arg_out = std::get<1>(result);
     ctx->save_for_backward({arg_out});
@@ -64,17 +65,17 @@ public:
   }
 };
 
-std::tuple<torch::Tensor, torch::Tensor> max_mul(const torch::Tensor src,
+std::tuple<torch::Tensor, torch::Tensor> scatter_edge_max(const torch::Tensor src,
                                                  const torch::Tensor edge_start,
                                                  const torch::Tensor edge_end,
                                                  int64_t res_dim)
 {
-  auto result = MaxMul::apply(src, edge_start, edge_end, res_dim);
+  auto result = ScatterEdgeMax::apply(src, edge_start, edge_end, res_dim);
 
   return std::make_tuple(result[0], result[1]);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
-  m.def("max_mul", &max_mul, "Max Sparse Mul forward");
+  m.def("scatter_edge_max", &scatter_edge_max, "Max Sparse Mul forward");
 }
