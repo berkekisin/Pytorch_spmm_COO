@@ -16,16 +16,12 @@ std::tuple<torch::Tensor, torch::Tensor> scatter_edge_forward(
 {
   if (src.device().is_cuda())
   {
-//#ifdef WITH_CUDA
     return scatter_edge_cuda(src, edge_start, edge_end, res_dim, reduce);
-//#else
-   //AT_ERROR("Not compiled with CUDA support");
-//#endif
   }
-  //else
-  //{
-  // return max_mul_cpu_forward(src, edge_start, edge_end, res_dim);
-  //}
+  else
+  {
+    AT_ERROR("Source Tensor not in GPU!");
+  }
 }
 
 using torch::autograd::AutogradContext;
@@ -40,9 +36,7 @@ public:
                                Variable edge_end,
                                int64_t res_dim)
   {
-    // ctx->saved_data["dim"] = dim_size;
     ctx->saved_data["src_shape"] = src.sizes();
-    // auto result = max_mul_cuda_forward(src, edge_start, edge_end, dim_size);
     auto result = scatter_edge_forward(src, edge_start, edge_end, res_dim, "max");
     auto out = std::get<0>(result);
     auto arg_out = std::get<1>(result);
@@ -55,7 +49,6 @@ public:
   {
     auto grad_out = grad_outs[0];
     auto arg_out = ctx->get_saved_variables()[0];
-    // auto dim = ctx->saved_data["dim"].toInt();
     auto src_shape = list2vec(ctx->saved_data["src_shape"].toIntList());
     src_shape[0] += 1;
     auto grad_in = torch::zeros(src_shape, grad_out.options());
