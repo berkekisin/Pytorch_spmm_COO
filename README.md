@@ -3,7 +3,7 @@
 Current implementation includes scatter operation with max reduction and only supports cuda.
 <br />
 Consider the following szenario: <br />
--A source tensor with size: n times k <br />
+-A source tensor with size: n*k <br />
 -Tensor edge start which contains start nodes of edges with size: l <br />
 -Tensor edge end which containt end nodes of edges with size: l <br />
 <br />
