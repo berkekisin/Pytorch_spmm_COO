@@ -32,3 +32,13 @@ inline std::vector<int64_t> list2vec(const c10::List<int64_t> list) {
     result.push_back(list[i]);
   return result;
 }
+
+torch::Tensor broadcast(torch::Tensor src, torch::Tensor other, int64_t dim) {
+  if (src.dim() == 1)
+    for (auto i = 0; i < dim; i++)
+      src = src.unsqueeze(0);
+  for (auto i = src.dim(); i < other.dim(); i++)
+    src = src.unsqueeze(-1);
+  src = src.expand(other.sizes().vec());
+  return src;
+}

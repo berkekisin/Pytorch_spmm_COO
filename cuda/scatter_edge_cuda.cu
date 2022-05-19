@@ -65,7 +65,7 @@ __global__ void scatter_edge_arg_kernel(
 }
 
 std::tuple<torch::Tensor,torch::Tensor> scatter_edge_cuda(
-    const torch::Tensor src, 
+    torch::Tensor src, 
     const torch::Tensor edge_start, 
     const torch::Tensor edge_end,
     int64_t res_dim,
@@ -76,8 +76,11 @@ std::tuple<torch::Tensor,torch::Tensor> scatter_edge_cuda(
     CHECK_INPUT_DIM(edge_start.size(0) == edge_end.size(0));
     CHECK_INPUT(edge_start);
     CHECK_INPUT(edge_end);
-
-    size_t hidden_dim = size(src, 1);
+    src = src.contiguous();
+    
+    size_t hidden_dim = 1;
+    if(src.dim() == 2)
+        hidden_dim = size(src, 1);
     size_t N = edge_end.numel()*hidden_dim;
 
     //create out and arg_out Tensor with given out_dim
