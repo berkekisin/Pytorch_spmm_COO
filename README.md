@@ -1,6 +1,6 @@
 # Pytorch_scatter_edge
 
-The current implementation includes scatter operation with max reduction and only supports Cuda.
+The current implementation includes scatter operation with max, sum and mean reductions and only supports Cuda.
 <br />
 Consider the following scenario: <br />
 -A source tensor with size: n.k <br />
