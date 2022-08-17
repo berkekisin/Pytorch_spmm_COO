@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: spmm-coo
+Version: 1.0
+Summary: Pytorch Extension Library of Optimized Sparse Matrix multiplication
+Home-page: UNKNOWN
+Author: Berke Kisin
+Author-email: kisinberke@gmail.com
+License: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3.8
+License-File: LICENSE
+
+UNKNOWN
+

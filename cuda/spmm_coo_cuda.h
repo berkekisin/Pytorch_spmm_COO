@@ -6,7 +6,7 @@
 #define CHECK_INPUT(x) \
   CHECK_CUDA(x);
 
-std::tuple<torch::Tensor, torch::Tensor> scatter_edge_cuda(
+std::tuple<torch::Tensor, torch::optional<torch::Tensor>> spmm_coo_cuda(
     torch::Tensor src,
     const torch::Tensor edge_start,
     const torch::Tensor edge_end,
