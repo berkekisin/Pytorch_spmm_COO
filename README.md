@@ -6,7 +6,7 @@ Setup:
 ```
 python setup.py
 ```
-Usage:
+### Sparse Dense Matrix Multiplication
 
 ```
 spmm_coo_sum(src, row, col, res_dim) -> torch.Tensor
