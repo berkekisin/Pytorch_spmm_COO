@@ -1,9 +1,0 @@
-LICENSE
-README.md
-setup.py
-spmm_coo.cpp
-cuda/spmm_coo_cuda.cu
-spmm_coo.egg-info/PKG-INFO
-spmm_coo.egg-info/SOURCES.txt
-spmm_coo.egg-info/dependency_links.txt
-spmm_coo.egg-info/top_level.txt
