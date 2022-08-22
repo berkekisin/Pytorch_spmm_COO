@@ -39,6 +39,6 @@ out = spmm_coo_sum(src, row, col, res_dim)
 ```
 print(out)
 tensor([[7.0, 10.0],
-        [5.0, 110.0],
+        [5.0, 11.0],
         [1.0, 4.0]])
 ```
