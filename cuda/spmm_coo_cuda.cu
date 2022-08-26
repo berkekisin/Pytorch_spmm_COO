@@ -1,9 +1,7 @@
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <stdio.h>
-#include <assert.h>
-
 #include "spmm_coo_cuda.h"
+
+#include <ATen/cuda/CUDAContext.h>
+
 #include "reducer.cuh"
 
 #define THREADS 1024
@@ -18,94 +16,124 @@ inline cudaError_t checkCuda(cudaError_t result)
   return result;
 }
 
-template <typename scalar_t, ReductionType REDUCE>
+template <typename scalar_t, ReductionType REDUCE, bool HAS_VALUE>
 __global__ void spmm_coo_kernel(
-    const scalar_t* __restrict__ src,
+    const scalar_t* __restrict__ mat,
     const int64_t* __restrict__ row, 
     const int64_t* __restrict__ col,
+    const scalar_t* __restrict__ value,
     scalar_t* __restrict__ res,
     int64_t* __restrict__ arg_out,
     size_t hidden_dim,
     size_t N)
 {
+    
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-
+    
     if(thread_id < N){
         int edge_index = thread_id / hidden_dim;
         int hidden_dim_index = thread_id % hidden_dim;
 
         int edge_start = __ldg(row + edge_index);
         int edge_end = __ldg(col + edge_index);
-        scalar_t write_val = __ldg(src + edge_start*hidden_dim + hidden_dim_index);
+        scalar_t write_val = __ldg(mat + edge_start*hidden_dim + hidden_dim_index);
         int res_index = edge_end*hidden_dim + hidden_dim_index;
-
+        
+        if(HAS_VALUE)
+            write_val *= __ldg(value + edge_index);
+          
         Reducer<scalar_t, REDUCE>::atomic_write(
                 res + res_index, 
                 write_val);
-
+        
         //compute arg out tensor
         if(REDUCE == MIN || REDUCE == MAX){
             __syncthreads();
+            if(HAS_VALUE)
+               edge_start = edge_index;
+
             if(res[res_index] == write_val)
                 arg_out[res_index] = edge_start;
         }
-    }            
+    }
 }
 
 std::tuple<torch::Tensor,torch::optional<torch::Tensor>> spmm_coo_cuda(
-    torch::Tensor src, 
-    const torch::Tensor edge_start, 
-    const torch::Tensor edge_end,
-    int64_t res_dim,
+    const torch::Tensor row, 
+    const torch::Tensor col,
+    const torch::optional<torch::Tensor> optional_value, 
+    torch::Tensor mat,
+    int64_t dim_size,
     std::string reduce)
 {
     //check input
-    CHECK_INPUT(src);
-    CHECK_INPUT_DIM(edge_start.size(0) == edge_end.size(0));
-    CHECK_INPUT(edge_start);
-    CHECK_INPUT(edge_end);
-    src = src.contiguous();
+    CHECK_CUDA(row);
+    CHECK_CUDA(col);
+    CHECK_CUDA(mat);
+    CHECK_INPUT_DIM(row.size(0) == col.size(0)); 
+    if(optional_value.has_value()){
+        CHECK_CUDA(optional_value.value());
+        CHECK_INPUT_DIM(optional_value.value().dim() == 1);
+        CHECK_INPUT_DIM(optional_value.value().size(0) == col.size(0));
+    }
+    mat = mat.contiguous();
     
+    // variables for loops
     size_t hidden_dim = 1;
-    if(src.dim() == 2)
-        hidden_dim = size(src, 1);
-    size_t N = edge_end.numel()*hidden_dim;
+    if(mat.dim() == 2)
+        hidden_dim = size(mat, 1);
+    size_t N = row.numel()*hidden_dim;
 
-    //create out and arg_out Tensor with given out_dim
-    auto res_dims = src.sizes().vec();
-    res_dims[0] = res_dim;
-    torch::Tensor res = torch::empty(res_dims, src.options());
+    //create out and arg_out Tensor
+    auto res_dims = mat.sizes().vec();
+    res_dims[0] = dim_size;
+    torch::Tensor res = torch::empty(res_dims, mat.options());
     torch::optional<torch::Tensor> arg_out = torch::nullopt;
-    //torch::Tensor arg_out = torch::empty(0, src.options());
     int64_t *arg_out_data = nullptr;
-    if (reduce2REDUCE.at(reduce) == MIN || reduce2REDUCE.at(reduce) == MAX) {
-        arg_out = torch::full_like(res,src.size(0),edge_start.options());
+    if(reduce2REDUCE.at(reduce) == MIN || reduce2REDUCE.at(reduce) == MAX){
+        arg_out = torch::full_like(res,col.size(0),row.options());
         arg_out_data = arg_out.value().data_ptr<int64_t>();
-      }
-    
-    AT_DISPATCH_FLOATING_TYPES(src.type(), "_", [&] {
-        auto src_data = src.data_ptr<scalar_t>();
-        auto res_data = res.data_ptr<scalar_t>();
-        auto edge_start_data = edge_start.data_ptr<int64_t>();
-        auto edge_end_data = edge_end.data_ptr<int64_t>();
+    }
 
+    auto row_data = row.data_ptr<int64_t>();
+    auto col_data = col.data_ptr<int64_t>();
+   
+    // sparse matrix multiplication
+    AT_DISPATCH_ALL_TYPES(mat.scalar_type(), "_", [&] {
+        auto mat_data = mat.data_ptr<scalar_t>();
+        auto res_data = res.data_ptr<scalar_t>();
+        
         AT_DISPATCH_REDUCTION_TYPES(reduce, [&] {
             res.fill_(Reducer<scalar_t, REDUCE>::init());
 
-            spmm_coo_kernel<scalar_t, REDUCE><<<BLOCKS(N), THREADS>>>(
-                src_data,
-                edge_start_data,
-                edge_end_data,
-                res_data,
-                arg_out_data,
-                hidden_dim,
-                N);
-   
+            if(optional_value.has_value()){
+                auto value_data = optional_value.value().data_ptr<scalar_t>();
+                spmm_coo_kernel<scalar_t, REDUCE, true><<<BLOCKS(N), THREADS>>>(
+                    mat_data,
+                    row_data,
+                    col_data,
+                    value_data,
+                    res_data,
+                    arg_out_data,
+                    hidden_dim,
+                    N);     
+            }else{
+                spmm_coo_kernel<scalar_t, REDUCE, false><<<BLOCKS(N), THREADS>>>(
+                    mat_data,
+                    row_data,
+                    col_data,
+                    nullptr,
+                    res_data,
+                    arg_out_data,
+                    hidden_dim,
+                    N);     
+            }
+
             res.masked_fill_(res == Reducer<scalar_t, REDUCE>::init(), (scalar_t)0);
         });     
     });
 
     checkCuda(cudaGetLastError());
     
-    return std::make_tuple(res,arg_out);   
-}
+    return std::make_tuple(res,arg_out);  
+}    
