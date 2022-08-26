@@ -2,26 +2,8 @@
 #include <vector>
 
 #include "cuda/spmm_coo_cuda.h"
+#include "utils.h"
 
-inline std::vector<int64_t> list2vec(const c10::List<int64_t> list)
-{
-    std::vector<int64_t> result;
-    result.reserve(list.size());
-    for (size_t i = 0; i < list.size(); i++)
-        result.push_back(list[i]);
-    return result;
-}
-
-torch::Tensor broadcast(torch::Tensor src, torch::Tensor other, int64_t dim)
-{
-    if (src.dim() == 1)
-        for (auto i = 0; i < dim; i++)
-            src = src.unsqueeze(0);
-    for (auto i = src.dim(); i < other.dim(); i++)
-        src = src.unsqueeze(-1);
-    src = src.expand(other.sizes().vec());
-    return src;
-}
 
 std::tuple<torch::Tensor, torch::optional<torch::Tensor>> spmm_coo_fw(
     const torch::Tensor row,
